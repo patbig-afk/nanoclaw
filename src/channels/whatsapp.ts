@@ -234,9 +234,15 @@ export class WhatsAppChannel implements Channel {
               const pdfRef = `[PDF: attachments/${filename} (${sizeKB}KB)]\nUse: pdf-reader extract attachments/${filename}`;
               const caption = msg.message.documentMessage.caption || '';
               content = caption ? `${caption}\n\n${pdfRef}` : pdfRef;
-              logger.info({ jid: chatJid, filename }, 'Downloaded PDF attachment');
+              logger.info(
+                { jid: chatJid, filename },
+                'Downloaded PDF attachment',
+              );
             } catch (err) {
-              logger.warn({ err, jid: chatJid }, 'Failed to download PDF attachment');
+              logger.warn(
+                { err, jid: chatJid },
+                'Failed to download PDF attachment',
+              );
             }
           }
 
