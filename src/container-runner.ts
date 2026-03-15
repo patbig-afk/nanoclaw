@@ -27,6 +27,7 @@ import {
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
+import { readEnvFile } from './env.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 
@@ -233,6 +234,12 @@ function buildContainerArgs(
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
+
+  // Inject OPENAI_API_KEY so agents can call Whisper and other OpenAI APIs
+  const { OPENAI_API_KEY } = readEnvFile(['OPENAI_API_KEY']);
+  if (OPENAI_API_KEY) {
+    args.push('-e', `OPENAI_API_KEY=${OPENAI_API_KEY}`);
+  }
 
   // Route API traffic through the credential proxy (containers never see real secrets)
   args.push(
