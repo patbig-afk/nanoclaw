@@ -3,6 +3,9 @@
 
 // discord
 
+// agentmail
+import './agentmail.js';
+
 // gmail
 import './gmail.js';
 
@@ -12,3 +15,4 @@ import './gmail.js';
 import './telegram.js';
 
 // whatsapp
+import './whatsapp.js';
