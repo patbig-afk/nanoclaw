@@ -7,12 +7,11 @@ import { AgentMailClient } from 'agentmail';
 
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
-import { registerChannel } from './registry.js';
-import { Channel, NewMessage } from '../types.js';
+import { registerChannel, ChannelOpts } from './registry.js';
+import { Channel, NewMessage, RegisteredGroup } from '../types.js';
 
 const POLL_INTERVAL_MS = 60_000;
 const INBOX_ID = 'patbig_openclaw@agentmail.to';
-const CHAT_JID = 'agentmail:main';
 
 class AgentMailChannel implements Channel {
   name = 'agentmail';
@@ -32,27 +31,20 @@ class AgentMailChannel implements Channel {
     channel?: string,
     isGroup?: boolean,
   ) => void;
+  private registeredGroups: () => Record<string, RegisteredGroup>;
 
-  constructor(
-    onMessage: (chatJid: string, msg: NewMessage) => void,
-    onChatMetadata: (
-      chatJid: string,
-      timestamp: string,
-      name?: string,
-      channel?: string,
-      isGroup?: boolean,
-    ) => void,
-  ) {
-    this.onMessage = onMessage;
-    this.onChatMetadata = onChatMetadata;
+  constructor(opts: ChannelOpts) {
+    this.onMessage = opts.onMessage;
+    this.onChatMetadata = opts.onChatMetadata;
+    this.registeredGroups = opts.registeredGroups;
   }
 
   isConnected(): boolean {
     return this.connected;
   }
 
-  ownsJid(jid: string): boolean {
-    return jid === CHAT_JID || jid.startsWith('agentmail:');
+  ownsJid(_jid: string): boolean {
+    return false; // AgentMail dispatches to the main group JID, not its own
   }
 
   async connect(): Promise<void> {
@@ -174,24 +166,26 @@ class AgentMailChannel implements Channel {
     messageId: string,
     timestamp: string,
   ): Promise<void> {
+    const groups = this.registeredGroups();
+    const mainEntry = Object.entries(groups).find(([, g]) => g.isMain === true);
+    if (!mainEntry) {
+      logger.warn('AgentMail: no main group registered, skipping email');
+      return;
+    }
+    const mainJid = mainEntry[0];
+
     const content = `[Email from ${senderEmail}]\nSujet: ${subject}\n\n${body}`;
 
     logger.info(
-      { from: senderEmail, subject },
+      { from: senderEmail, subject, mainJid },
       'AgentMail: dispatching email as instruction',
     );
 
-    this.onChatMetadata(
-      CHAT_JID,
-      timestamp,
-      `Email (${senderEmail})`,
-      'agentmail',
-      false,
-    );
+    this.onChatMetadata(mainJid, timestamp, `Email (${senderEmail})`, 'agentmail', false);
 
-    this.onMessage(CHAT_JID, {
+    this.onMessage(mainJid, {
       id: messageId,
-      chat_jid: CHAT_JID,
+      chat_jid: mainJid,
       sender: `agentmail:${senderEmail}`,
       sender_name: senderEmail,
       content,
@@ -205,5 +199,5 @@ registerChannel('agentmail', (opts) => {
   const env = readEnvFile(['MAILAGENT_API_KEY']);
   if (!env.MAILAGENT_API_KEY) return null;
 
-  return new AgentMailChannel(opts.onMessage, opts.onChatMetadata);
+  return new AgentMailChannel(opts);
 });
