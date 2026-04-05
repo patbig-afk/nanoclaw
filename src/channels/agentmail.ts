@@ -181,7 +181,13 @@ class AgentMailChannel implements Channel {
       'AgentMail: dispatching email as instruction',
     );
 
-    this.onChatMetadata(mainJid, timestamp, `Email (${senderEmail})`, 'agentmail', false);
+    this.onChatMetadata(
+      mainJid,
+      timestamp,
+      `Email (${senderEmail})`,
+      'agentmail',
+      false,
+    );
 
     this.onMessage(mainJid, {
       id: messageId,

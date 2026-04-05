@@ -235,10 +235,10 @@ function buildContainerArgs(
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
 
-  // Inject OPENAI_API_KEY so agents can call Whisper and other OpenAI APIs
-  const { OPENAI_API_KEY } = readEnvFile(['OPENAI_API_KEY']);
-  if (OPENAI_API_KEY) {
-    args.push('-e', `OPENAI_API_KEY=${OPENAI_API_KEY}`);
+  // Inject service credentials from env file into containers
+  const injectedVars = readEnvFile(['OPENAI_API_KEY', 'MAILAGENT_API_KEY', 'CUBE_URL', 'CUBE_EMAIL', 'CUBE_PASSWORD', 'LANGFUSE_PUBLIC_KEY', 'LANGFUSE_SECRET_KEY', 'LANGFUSE_BASE_URL']);
+  for (const [key, value] of Object.entries(injectedVars)) {
+    if (value) args.push('-e', `${key}=${value}`);
   }
 
   // Route API traffic through the credential proxy (containers never see real secrets)

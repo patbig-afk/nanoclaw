@@ -18,6 +18,26 @@ import fs from 'fs';
 import path from 'path';
 import { query, HookCallback, PreCompactHookInput } from '@anthropic-ai/claude-agent-sdk';
 import { fileURLToPath } from 'url';
+import Langfuse from 'langfuse';
+
+// Langfuse client — initialized once at startup if env vars are present
+let langfuse: InstanceType<typeof Langfuse> | null = null;
+
+function initLangfuse(): void {
+  const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
+  const secretKey = process.env.LANGFUSE_SECRET_KEY;
+  if (!publicKey || !secretKey) return;
+  langfuse = new Langfuse({
+    publicKey,
+    secretKey,
+    baseUrl: process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com',
+  });
+  // Flush on SIGTERM so data isn't lost when the container is killed
+  process.on('SIGTERM', () => {
+    langfuse?.flushAsync().finally(() => process.exit(0));
+  });
+  log(`Langfuse OTEL tracing initialized (${process.env.LANGFUSE_BASE_URL ?? 'https://cloud.langfuse.com'})`);
+}
 
 interface ContainerInput {
   prompt: string;
@@ -404,6 +424,28 @@ async function runQuery(
   let lastAssistantUuid: string | undefined;
   let messageCount = 0;
   let resultCount = 0;
+  let detectedModel: string | undefined;
+
+  // Langfuse: one trace per query (unique id), grouped by sessionId
+  const queryStartTime = Date.now();
+  const trace = langfuse?.trace({
+    name: `query:${containerInput.groupFolder}`,
+    sessionId: sessionId ?? containerInput.chatJid,
+    metadata: {
+      group: containerInput.groupFolder,
+      chatJid: containerInput.chatJid,
+      isMain: containerInput.isMain,
+    },
+  });
+  const generation = trace?.generation({
+    name: 'claude-agent-sdk',
+    input: prompt,
+    model: 'claude-code',
+    startTime: new Date(queryStartTime),
+  });
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let lastResult: string | null = null;
 
   // Load global CLAUDE.md as additional system context (shared across all groups)
   const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
@@ -483,7 +525,8 @@ async function runQuery(
 
     if (message.type === 'system' && message.subtype === 'init') {
       newSessionId = message.session_id;
-      log(`Session initialized: ${newSessionId}`);
+      detectedModel = (message as Record<string, unknown>).model as string | undefined;
+      log(`Session initialized: ${newSessionId}${detectedModel ? ` model=${detectedModel}` : ''}`);
     }
 
     if (message.type === 'system' && (message as { subtype?: string }).subtype === 'task_notification') {
@@ -493,8 +536,47 @@ async function runQuery(
 
     if (message.type === 'result') {
       resultCount++;
-      const textResult = 'result' in message ? (message as { result?: string }).result : null;
+      const msg = message as Record<string, unknown>;
+      const textResult = typeof msg.result === 'string' ? msg.result : null;
       log(`Result #${resultCount}: subtype=${message.subtype}${textResult ? ` text=${textResult.slice(0, 200)}` : ''}`);
+      log(`[debug] usage=${JSON.stringify(msg.usage)} modelUsage=${JSON.stringify(msg.modelUsage)}`);
+      // Extract token usage — inspect both usage and modelUsage (SDK varies)
+      const usageRaw = (msg.usage ?? {}) as Record<string, unknown>;
+      const modelUsageRaw = (msg.modelUsage ?? {}) as Record<string, Record<string, unknown>>;
+      // modelUsage is keyed by model name, aggregate across all models
+      let inputTokens = Number(usageRaw.input_tokens ?? usageRaw.inputTokens ?? 0);
+      let outputTokens = Number(usageRaw.output_tokens ?? usageRaw.outputTokens ?? 0);
+      if (inputTokens === 0 && outputTokens === 0) {
+        for (const m of Object.values(modelUsageRaw)) {
+          inputTokens += Number((m as Record<string, unknown>).input_tokens ?? 0);
+          outputTokens += Number((m as Record<string, unknown>).output_tokens ?? 0);
+        }
+      }
+      totalInputTokens += inputTokens;
+      totalOutputTokens += outputTokens;
+      if (textResult) lastResult = textResult;
+
+      // Finalize immediately on each result — don't wait for session close.
+      // The for-await loop stays open waiting for the next IPC message, so
+      // code after the loop only runs when _close arrives. By flushing here
+      // we guarantee data reaches Langfuse even if the container is later killed.
+      const totalTokens = totalInputTokens + totalOutputTokens;
+      const durationMs = Date.now() - queryStartTime;
+      generation?.update({
+        input: prompt,
+        output: textResult,
+        model: detectedModel ?? 'claude-opus-4-5',
+        usage: {
+          input: totalInputTokens || undefined,
+          output: totalOutputTokens || undefined,
+          total: totalTokens || undefined,
+        },
+        metadata: { durationMs },
+      });
+      generation?.end();
+      log(`[Langfuse] group=${containerInput.groupFolder} | input=${totalInputTokens} | output=${totalOutputTokens} | total=${totalTokens} tokens`);
+      langfuse?.flushAsync().catch(e => log(`[Langfuse] flush error: ${e}`));
+
       writeOutput({
         status: 'success',
         result: textResult || null,
@@ -503,12 +585,15 @@ async function runQuery(
     }
   }
 
+  // generation already finalized per-result above; nothing more to send here
   ipcPolling = false;
   log(`Query done. Messages: ${messageCount}, results: ${resultCount}, lastAssistantUuid: ${lastAssistantUuid || 'none'}, closedDuringQuery: ${closedDuringQuery}`);
   return { newSessionId, lastAssistantUuid, closedDuringQuery };
 }
 
 async function main(): Promise<void> {
+  initLangfuse();
+
   let containerInput: ContainerInput;
 
   try {
@@ -695,8 +780,11 @@ async function main(): Promise<void> {
       newSessionId: sessionId,
       error: errorMessage
     });
+    await langfuse?.flushAsync();
     process.exit(1);
   }
+
+  await langfuse?.flushAsync();
 }
 
 main();
