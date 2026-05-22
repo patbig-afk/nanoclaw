@@ -88,6 +88,7 @@ async function main(): Promise<void> {
     }
   }
 
+<<<<<<< HEAD
   // MCP server path — bun runs TS directly; no tsc build step in-image.
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const mcpServerPath = path.join(__dirname, 'mcp-tools', 'index.ts');
@@ -98,6 +99,68 @@ async function main(): Promise<void> {
       command: 'bun',
       args: ['run', mcpServerPath],
       env: {},
+=======
+  for await (const message of query({
+    prompt: stream,
+    options: {
+      cwd: '/workspace/group',
+      additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
+      resume: sessionId,
+      resumeSessionAt: resumeAt,
+      systemPrompt: globalClaudeMd
+        ? {
+            type: 'preset' as const,
+            preset: 'claude_code' as const,
+            append: globalClaudeMd,
+          }
+        : undefined,
+      allowedTools: [
+        'Bash',
+        'Read',
+        'Write',
+        'Edit',
+        'Glob',
+        'Grep',
+        'WebSearch',
+        'WebFetch',
+        'Task',
+        'TaskOutput',
+        'TaskStop',
+        'TeamCreate',
+        'TeamDelete',
+        'SendMessage',
+        'TodoWrite',
+        'ToolSearch',
+        'Skill',
+        'NotebookEdit',
+        'mcp__nanoclaw__*',
+        'mcp__qmd__*',
+      ],
+      env: sdkEnv,
+      permissionMode: 'bypassPermissions',
+      allowDangerouslySkipPermissions: true,
+      settingSources: ['project', 'user'],
+      mcpServers: {
+        nanoclaw: {
+          command: 'node',
+          args: [mcpServerPath],
+          env: {
+            NANOCLAW_CHAT_JID: containerInput.chatJid,
+            NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
+            NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
+          },
+        },
+        qmd: {
+          type: 'http',
+          url: 'http://host.docker.internal:8182/mcp',
+        },
+      },
+      hooks: {
+        PreCompact: [
+          { hooks: [createPreCompactHook(containerInput.assistantName)] },
+        ],
+      },
+>>>>>>> upstream/skill/qmd
     },
   };
 
