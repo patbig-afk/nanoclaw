@@ -1,16 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import {
-  ASSISTANT_NAME,
-  getTriggerPattern,
-  TRIGGER_PATTERN,
-} from './config.js';
-import {
-  escapeXml,
-  formatMessages,
-  formatOutbound,
-  stripInternalTags,
-} from './router.js';
+import { ASSISTANT_NAME, getTriggerPattern, TRIGGER_PATTERN } from './config.js';
+import { escapeXml, formatMessages, formatOutbound, stripInternalTags } from './router.js';
 import { parseTextStyles, parseSignalStyles } from './text-styles.js';
 import { NewMessage } from './types.js';
 
@@ -46,9 +37,7 @@ describe('escapeXml', () => {
   });
 
   it('handles multiple special characters together', () => {
-    expect(escapeXml('a & b < c > d "e"')).toBe(
-      'a &amp; b &lt; c &gt; d &quot;e&quot;',
-    );
+    expect(escapeXml('a & b < c > d "e"')).toBe('a &amp; b &lt; c &gt; d &quot;e&quot;');
   });
 
   it('passes through strings with no special chars', () => {
@@ -101,13 +90,8 @@ describe('formatMessages', () => {
   });
 
   it('escapes special characters in content', () => {
-    const result = formatMessages(
-      [makeMsg({ content: '<script>alert("xss")</script>' })],
-      TZ,
-    );
-    expect(result).toContain(
-      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;',
-    );
+    const result = formatMessages([makeMsg({ content: '<script>alert("xss")</script>' })], TZ);
+    expect(result).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
   });
 
   it('handles empty array', () => {
@@ -118,10 +102,7 @@ describe('formatMessages', () => {
 
   it('converts timestamps to local time for given timezone', () => {
     // 2024-01-01T18:30:00Z in America/New_York (EST) = 1:30 PM
-    const result = formatMessages(
-      [makeMsg({ timestamp: '2024-01-01T18:30:00.000Z' })],
-      'America/New_York',
-    );
+    const result = formatMessages([makeMsg({ timestamp: '2024-01-01T18:30:00.000Z' })], 'America/New_York');
     expect(result).toContain('1:30');
     expect(result).toContain('PM');
     expect(result).toContain('<context timezone="America/New_York" />');
@@ -192,21 +173,15 @@ describe('getTriggerPattern', () => {
 
 describe('stripInternalTags', () => {
   it('strips single-line internal tags', () => {
-    expect(stripInternalTags('hello <internal>secret</internal> world')).toBe(
-      'hello  world',
-    );
+    expect(stripInternalTags('hello <internal>secret</internal> world')).toBe('hello  world');
   });
 
   it('strips multi-line internal tags', () => {
-    expect(
-      stripInternalTags('hello <internal>\nsecret\nstuff\n</internal> world'),
-    ).toBe('hello  world');
+    expect(stripInternalTags('hello <internal>\nsecret\nstuff\n</internal> world')).toBe('hello  world');
   });
 
   it('strips multiple internal tag blocks', () => {
-    expect(
-      stripInternalTags('<internal>a</internal>hello<internal>b</internal>'),
-    ).toBe('hello');
+    expect(stripInternalTags('<internal>a</internal>hello<internal>b</internal>')).toBe('hello');
   });
 
   it('returns empty string when text is only internal tags', () => {
@@ -224,9 +199,7 @@ describe('formatOutbound', () => {
   });
 
   it('strips internal tags from remaining text', () => {
-    expect(
-      formatOutbound('<internal>thinking</internal>The answer is 42'),
-    ).toBe('The answer is 42');
+    expect(formatOutbound('<internal>thinking</internal>The answer is 42')).toBe('The answer is 42');
   });
 });
 
@@ -235,10 +208,7 @@ describe('formatOutbound', () => {
 describe('trigger gating (requiresTrigger interaction)', () => {
   // Replicates the exact logic from processGroupMessages and startMessageLoop:
   //   if (!isMainGroup && group.requiresTrigger !== false) { check group.trigger }
-  function shouldRequireTrigger(
-    isMainGroup: boolean,
-    requiresTrigger: boolean | undefined,
-  ): boolean {
+  function shouldRequireTrigger(isMainGroup: boolean, requiresTrigger: boolean | undefined): boolean {
     return !isMainGroup && requiresTrigger !== false;
   }
 
@@ -314,9 +284,7 @@ describe('parseTextStyles — bold', () => {
   });
 
   it('converts **bold** to *bold* on telegram', () => {
-    expect(parseTextStyles('say **this** now', 'telegram')).toBe(
-      'say *this* now',
-    );
+    expect(parseTextStyles('say **this** now', 'telegram')).toBe('say *this* now');
   });
 
   it('converts **bold** to *bold* on slack', () => {
@@ -330,9 +298,7 @@ describe('parseTextStyles — bold', () => {
 
 describe('parseTextStyles — italic', () => {
   it('converts *italic* to _italic_ on whatsapp', () => {
-    expect(parseTextStyles('say *this* now', 'whatsapp')).toBe(
-      'say _this_ now',
-    );
+    expect(parseTextStyles('say *this* now', 'whatsapp')).toBe('say _this_ now');
   });
 
   it('converts *italic* to _italic_ on telegram', () => {
@@ -340,9 +306,7 @@ describe('parseTextStyles — italic', () => {
   });
 
   it('bold-before-italic: **bold** *italic* → *bold* _italic_', () => {
-    expect(parseTextStyles('**bold** *italic*', 'whatsapp')).toBe(
-      '*bold* _italic_',
-    );
+    expect(parseTextStyles('**bold** *italic*', 'whatsapp')).toBe('*bold* _italic_');
   });
 });
 
@@ -367,35 +331,25 @@ describe('parseTextStyles — headings', () => {
 
 describe('parseTextStyles — links', () => {
   it('converts [text](url) to text (url) on whatsapp', () => {
-    expect(parseTextStyles('[Link](https://example.com)', 'whatsapp')).toBe(
-      'Link (https://example.com)',
-    );
+    expect(parseTextStyles('[Link](https://example.com)', 'whatsapp')).toBe('Link (https://example.com)');
   });
 
   it('converts [text](url) to text (url) on telegram', () => {
-    expect(parseTextStyles('[Link](https://example.com)', 'telegram')).toBe(
-      'Link (https://example.com)',
-    );
+    expect(parseTextStyles('[Link](https://example.com)', 'telegram')).toBe('Link (https://example.com)');
   });
 
   it('converts [text](url) to <url|text> on slack', () => {
-    expect(parseTextStyles('[Click here](https://example.com)', 'slack')).toBe(
-      '<https://example.com|Click here>',
-    );
+    expect(parseTextStyles('[Click here](https://example.com)', 'slack')).toBe('<https://example.com|Click here>');
   });
 });
 
 describe('parseTextStyles — horizontal rules', () => {
   it('strips --- on telegram', () => {
-    expect(parseTextStyles('above\n---\nbelow', 'telegram')).toBe(
-      'above\n\nbelow',
-    );
+    expect(parseTextStyles('above\n---\nbelow', 'telegram')).toBe('above\n\nbelow');
   });
 
   it('strips *** on whatsapp', () => {
-    expect(parseTextStyles('above\n***\nbelow', 'whatsapp')).toBe(
-      'above\n\nbelow',
-    );
+    expect(parseTextStyles('above\n***\nbelow', 'whatsapp')).toBe('above\n\nbelow');
   });
 });
 
@@ -412,16 +366,12 @@ describe('parseTextStyles — code block protection', () => {
 
   it('transforms text outside code blocks but not inside', () => {
     const input = '**bold** and `*code*` and *italic*';
-    expect(parseTextStyles(input, 'whatsapp')).toBe(
-      '*bold* and `*code*` and _italic_',
-    );
+    expect(parseTextStyles(input, 'whatsapp')).toBe('*bold* and `*code*` and _italic_');
   });
 
   it('transforms text outside fenced block but not inside', () => {
     const input = '**bold**\n```\n**raw**\n```\n*italic*';
-    expect(parseTextStyles(input, 'telegram')).toBe(
-      '*bold*\n```\n**raw**\n```\n_italic_',
-    );
+    expect(parseTextStyles(input, 'telegram')).toBe('*bold*\n```\n**raw**\n```\n_italic_');
   });
 });
 
@@ -449,9 +399,7 @@ describe('parseSignalStyles — basic styles', () => {
   it('extracts STRIKETHROUGH from ~~text~~', () => {
     const { text, textStyle } = parseSignalStyles('~~hello~~');
     expect(text).toBe('hello');
-    expect(textStyle).toEqual([
-      { style: 'STRIKETHROUGH', start: 0, length: 5 },
-    ]);
+    expect(textStyle).toEqual([{ style: 'STRIKETHROUGH', start: 0, length: 5 }]);
   });
 
   it('extracts MONOSPACE from `inline code`', () => {
@@ -488,9 +436,7 @@ describe('parseSignalStyles — mixed content', () => {
   });
 
   it('strips link markers, no style applied', () => {
-    const { text, textStyle } = parseSignalStyles(
-      '[Click here](https://example.com)',
-    );
+    const { text, textStyle } = parseSignalStyles('[Click here](https://example.com)');
     expect(text).toBe('Click here (https://example.com)');
     expect(textStyle).toHaveLength(0);
   });
@@ -540,9 +486,7 @@ describe('formatOutbound — channel-aware', () => {
   });
 
   it('strips internal tags then applies channel formatting', () => {
-    expect(
-      formatOutbound('<internal>thinking</internal>**done**', 'telegram'),
-    ).toBe('*done*');
+    expect(formatOutbound('<internal>thinking</internal>**done**', 'telegram')).toBe('*done*');
   });
 
   it('signal channel is passthrough — raw markdown preserved for parseSignalStyles', () => {
