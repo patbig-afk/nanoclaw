@@ -59,10 +59,7 @@ class AgentMailChannel implements Channel {
     this.client = new AgentMailClient({ apiKey });
     this.connected = true;
 
-    logger.info(
-      { inbox: INBOX_ID, allowedSender: this.allowedSender || 'all' },
-      'AgentMail channel connected',
-    );
+    logger.info({ inbox: INBOX_ID, allowedSender: this.allowedSender || 'all' }, 'AgentMail channel connected');
 
     this.schedulePoll();
   }
@@ -96,10 +93,7 @@ class AgentMailChannel implements Channel {
   private schedulePoll(): void {
     const backoffMs =
       this.consecutiveErrors > 0
-        ? Math.min(
-            POLL_INTERVAL_MS * Math.pow(2, this.consecutiveErrors),
-            30 * 60 * 1000,
-          )
+        ? Math.min(POLL_INTERVAL_MS * Math.pow(2, this.consecutiveErrors), 30 * 60 * 1000)
         : POLL_INTERVAL_MS;
 
     this.pollTimer = setTimeout(async () => {
@@ -124,9 +118,7 @@ class AgentMailChannel implements Channel {
         // Extract sender email from "Name <email>" or plain email
         const fromRaw = item.from ?? '';
         const senderEmail =
-          typeof fromRaw === 'string'
-            ? (fromRaw.match(/<(.+?)>$/)?.[1] ?? fromRaw).trim()
-            : String(fromRaw);
+          typeof fromRaw === 'string' ? (fromRaw.match(/<(.+?)>$/)?.[1] ?? fromRaw).trim() : String(fromRaw);
 
         // Filter: only allowed sender triggers the agent
         if (this.allowedSender && senderEmail !== this.allowedSender) {
@@ -138,17 +130,11 @@ class AgentMailChannel implements Channel {
         }
 
         // Fetch full message to get body text
-        const full = await this.client.inboxes.messages.get(
-          INBOX_ID,
-          messageId,
-        );
+        const full = await this.client.inboxes.messages.get(INBOX_ID, messageId);
         const body = full.text ?? full.extractedText ?? full.preview ?? '';
         const subject = full.subject ?? '(no subject)';
 
-        const ts =
-          full.timestamp instanceof Date
-            ? full.timestamp.toISOString()
-            : String(full.timestamp);
+        const ts = full.timestamp instanceof Date ? full.timestamp.toISOString() : String(full.timestamp);
         await this.dispatchToMain(senderEmail, subject, body, messageId, ts);
       }
 
@@ -176,18 +162,9 @@ class AgentMailChannel implements Channel {
 
     const content = `[Email from ${senderEmail}]\nSujet: ${subject}\n\n${body}`;
 
-    logger.info(
-      { from: senderEmail, subject, mainJid },
-      'AgentMail: dispatching email as instruction',
-    );
+    logger.info({ from: senderEmail, subject, mainJid }, 'AgentMail: dispatching email as instruction');
 
-    this.onChatMetadata(
-      mainJid,
-      timestamp,
-      `Email (${senderEmail})`,
-      'agentmail',
-      false,
-    );
+    this.onChatMetadata(mainJid, timestamp, `Email (${senderEmail})`, 'agentmail', false);
 
     this.onMessage(mainJid, {
       id: messageId,

@@ -8,12 +8,7 @@ import { OAuth2Client } from 'google-auth-library';
 // isMain flag is used instead of MAIN_GROUP_FOLDER constant
 import { logger } from '../logger.js';
 import { registerChannel, ChannelOpts } from './registry.js';
-import {
-  Channel,
-  OnChatMetadata,
-  OnInboundMessage,
-  RegisteredGroup,
-} from '../types.js';
+import { Channel, OnChatMetadata, OnInboundMessage, RegisteredGroup } from '../types.js';
 
 export interface GmailChannelOpts {
   onMessage: OnInboundMessage;
@@ -52,9 +47,7 @@ export class GmailChannel implements Channel {
     const tokensPath = path.join(credDir, 'credentials.json');
 
     if (!fs.existsSync(keysPath) || !fs.existsSync(tokensPath)) {
-      logger.warn(
-        'Gmail credentials not found in ~/.gmail-mcp/. Skipping Gmail channel. Run /add-gmail to set up.',
-      );
+      logger.warn('Gmail credentials not found in ~/.gmail-mcp/. Skipping Gmail channel. Run /add-gmail to set up.');
       return;
     }
 
@@ -63,11 +56,7 @@ export class GmailChannel implements Channel {
 
     const clientConfig = keys.installed || keys.web || keys;
     const { client_id, client_secret, redirect_uris } = clientConfig;
-    this.oauth2Client = new google.auth.OAuth2(
-      client_id,
-      client_secret,
-      redirect_uris?.[0],
-    );
+    this.oauth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris?.[0]);
     this.oauth2Client.setCredentials(tokens);
 
     // Persist refreshed tokens
@@ -93,10 +82,7 @@ export class GmailChannel implements Channel {
     const schedulePoll = () => {
       const backoffMs =
         this.consecutiveErrors > 0
-          ? Math.min(
-              this.pollIntervalMs * Math.pow(2, this.consecutiveErrors),
-              30 * 60 * 1000,
-            )
+          ? Math.min(this.pollIntervalMs * Math.pow(2, this.consecutiveErrors), 30 * 60 * 1000)
           : this.pollIntervalMs;
       this.pollTimer = setTimeout(() => {
         this.pollForMessages()
@@ -126,9 +112,7 @@ export class GmailChannel implements Channel {
       return;
     }
 
-    const subject = meta.subject.startsWith('Re:')
-      ? meta.subject
-      : `Re: ${meta.subject}`;
+    const subject = meta.subject.startsWith('Re:') ? meta.subject : `Re: ${meta.subject}`;
 
     const headers = [
       `To: ${meta.sender}`,
@@ -214,10 +198,7 @@ export class GmailChannel implements Channel {
       this.consecutiveErrors = 0;
     } catch (err) {
       this.consecutiveErrors++;
-      const backoffMs = Math.min(
-        this.pollIntervalMs * Math.pow(2, this.consecutiveErrors),
-        30 * 60 * 1000,
-      );
+      const backoffMs = Math.min(this.pollIntervalMs * Math.pow(2, this.consecutiveErrors), 30 * 60 * 1000);
       logger.error(
         {
           err,
@@ -239,17 +220,13 @@ export class GmailChannel implements Channel {
     });
 
     const headers = msg.data.payload?.headers || [];
-    const getHeader = (name: string) =>
-      headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())
-        ?.value || '';
+    const getHeader = (name: string) => headers.find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
 
     const from = getHeader('From');
     const subject = getHeader('Subject');
     const rfc2822MessageId = getHeader('Message-ID');
     const threadId = msg.data.threadId || messageId;
-    const timestamp = new Date(
-      parseInt(msg.data.internalDate || '0', 10),
-    ).toISOString();
+    const timestamp = new Date(parseInt(msg.data.internalDate || '0', 10)).toISOString();
 
     // Extract sender name and email
     const senderMatch = from.match(/^(.+?)\s*<(.+?)>$/);
@@ -285,10 +262,7 @@ export class GmailChannel implements Channel {
     const mainEntry = Object.entries(groups).find(([, g]) => g.isMain === true);
 
     if (!mainEntry) {
-      logger.debug(
-        { chatJid, subject },
-        'No main group registered, skipping email',
-      );
+      logger.debug({ chatJid, subject }, 'No main group registered, skipping email');
       return;
     }
 
@@ -316,15 +290,10 @@ export class GmailChannel implements Channel {
       logger.warn({ messageId, err }, 'Failed to mark email as read');
     }
 
-    logger.info(
-      { mainJid, from: senderName, subject },
-      'Gmail email delivered to main group',
-    );
+    logger.info({ mainJid, from: senderName, subject }, 'Gmail email delivered to main group');
   }
 
-  private extractTextBody(
-    payload: gmail_v1.Schema$MessagePart | undefined,
-  ): string {
+  private extractTextBody(payload: gmail_v1.Schema$MessagePart | undefined): string {
     if (!payload) return '';
 
     // Direct text/plain body

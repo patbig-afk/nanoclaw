@@ -15,10 +15,7 @@ const DEFAULT_CONFIG: TranscriptionConfig = {
   fallbackMessage: '[Voice Message - transcription unavailable]',
 };
 
-async function transcribeWithOpenAI(
-  audioBuffer: Buffer,
-  config: TranscriptionConfig,
-): Promise<string | null> {
+async function transcribeWithOpenAI(audioBuffer: Buffer, config: TranscriptionConfig): Promise<string | null> {
   const env = readEnvFile(['OPENAI_API_KEY']);
   const apiKey = env.OPENAI_API_KEY;
 
@@ -52,10 +49,7 @@ async function transcribeWithOpenAI(
   }
 }
 
-export async function transcribeAudioMessage(
-  msg: WAMessage,
-  sock: WASocket,
-): Promise<string | null> {
+export async function transcribeAudioMessage(msg: WAMessage, sock: WASocket): Promise<string | null> {
   const config = DEFAULT_CONFIG;
 
   if (!config.enabled) {
